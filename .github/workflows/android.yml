@@ -29,26 +29,15 @@ jobs:
         pip install git+https://github.com/kivy/buildozer.git@master
         pip install "cython<3.0.0" virtualenv
 
-    - name: Auto-Locate and Build APK
+    - name: Execute Buildozer Build
       run: |
         export APP_ANDROID_ACCEPT_SDK_LICENSE=1
-        
-        # This searches your entire repository structure for buildozer.spec and switches to that folder dynamically
-        SPEC_PATH=$(find . -name "buildozer.spec" -print -quit)
-        if [ -z "$SPEC_PATH" ]; then
-          echo "ERROR: Could not find buildozer.spec anywhere in the repository!"
-          exit 1
-        fi
-        
-        TARGET_DIR=$(dirname "$SPEC_PATH")
-        echo "Found buildozer.spec in: $TARGET_DIR"
-        cd "$TARGET_DIR"
-        
-        # Start the build execution
-        yes | buildozer --verbose android debug
+        # Removed the 'yes |' pipe completely to fix the broken pipe system crash
+        buildozer --verbose android debug
+      working-directory: .
 
-    - name: Locate and Upload APK Artifact
+    - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: Network-File-Sharing-APK
-        path: "**/bin/*.apk"
+        path: bin/*.apk
