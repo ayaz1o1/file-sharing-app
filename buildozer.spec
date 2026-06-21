@@ -15,11 +15,14 @@ source.dir = .
 # (list) Source files to include (leave empty to include all the files)
 source.include_exts = py,png,jpg,kv,atlas
 
-# (str) Application versioning (method 1)
+# (str) Application versioning (Explicitly defined)
 version = 0.1
 
+# (str) Version matching configuration requirements 
+version.regex = __version__ = ['"](.*)['"]
+version.filename = %(source.dir)s/main.py
+
 # (list) Application requirements
-# Added hostpython3 to guarantee successful cross-compilation environment setup
 requirements = python3,kivy,hostpython3
 
 # (list) Supported orientations
@@ -56,4 +59,4 @@ android.allow_backup = True
 log_level = 2
 
 # (int) Display warning if buildozer is run as root (0 = False, 1 = True)
-warn_on_root = 1
+warn_on_root = 1 
