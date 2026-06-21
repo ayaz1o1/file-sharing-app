@@ -15,6 +15,8 @@ from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.utils import platform
+# Imported clock/mainthread to protect graphics pipeline during thread execution
+from kivy.clock import mainthread 
 
 class FileSharingApp(App):
     def build(self):
@@ -38,7 +40,11 @@ class FileSharingApp(App):
         return self.layout
 
     def permission_callback(self, permissions, grants):
-        self.start_server_thread()
+        # Verification check to make sure permissions were actually approved
+        if all(grants):
+            self.start_server_thread()
+        else:
+            self.update_status("❌ Storage permissions denied.\nCannot save incoming files.")
 
     def get_local_ip(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -53,10 +59,17 @@ class FileSharingApp(App):
 
     def get_shared_directory(self):
         if platform == 'android':
-            from android.storage import primary_external_storage_path
-            download_path = os.path.join(primary_external_storage_path(), 'Download')
-            if os.path.exists(download_path): return download_path
-            return primary_external_storage_path()
+            # Uses Kivy's modern safe directory hooks to access external storage paths securely
+            from android.storage import AppDirs
+            try:
+                # Attempts to access primary shared storage download zone
+                from jnius import autoclass
+                Environment = autoclass('android.os.Environment')
+                download_path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).getAbsolutePath()
+                return download_path
+            except Exception:
+                # Fallback to application safe data directory if path mapping encounters blocks
+                return App().user_data_dir
         else:
             fallback_path = os.path.join(os.getcwd(), "shared_files")
             os.makedirs(fallback_path, exist_ok=True)
@@ -75,12 +88,12 @@ class FileSharingApp(App):
         )
         self.info_label.text = instructions
 
+    @mainthread
     def update_status(self, text):
-        # Thread-safe method to update UI text status
+        # Decorated with @mainthread to intercept background signals safely and update UI text safely
         self.info_label.text = text
 
     def run_socket_server(self):
-        # Open a low-level TCP socket server to accept raw byte buffers
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_sock:
             server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             server_sock.bind(("0.0.0.0", self.port))
@@ -89,14 +102,12 @@ class FileSharingApp(App):
             while True:
                 try:
                     conn, addr = server_sock.accept()
-                    # Spin off file receiver process into a background task
                     Thread(target=self.handle_incoming_file, args=(conn, addr), daemon=True).start()
                 except Exception as e:
                     print(f"Socket Server Error: {e}")
 
     def handle_incoming_file(self, conn, addr):
         try:
-            # Read metadata line until newline character flag
             reader = conn.makefile('rb')
             metadata = reader.readline().decode('utf-8').strip()
             if not metadata:
@@ -108,10 +119,8 @@ class FileSharingApp(App):
             out_path = os.path.join(self.shared_dir, file_name)
             self.update_status(f"📥 Receiving: {file_name}\nFrom: {addr[0]}\nSize: {file_size / (1024*1024):.2f} MB")
             
-            # Send greenlight signal back to laptop client program
             conn.sendall(b"READY")
             
-            # Read raw binary payloads and stream directly down onto disk storage
             bytes_received = 0
             with open(out_path, 'wb') as fout:
                 while bytes_received < file_size:
