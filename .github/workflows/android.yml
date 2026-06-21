@@ -23,16 +23,16 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: Install Buildozer and Cython
+    - name: Install Stable Buildozer and Cython
       run: |
         pip install --upgrade pip
-        pip install git+https://github.com/kivy/buildozer.git@master
+        # Switched from experimental master branch to the stable official release version
+        pip install buildozer==1.5.0
         pip install "cython<3.0.0" virtualenv
 
     - name: Execute Buildozer Build
       run: |
         export APP_ANDROID_ACCEPT_SDK_LICENSE=1
-        # Removed the 'yes |' pipe completely to fix the broken pipe system crash
         buildozer --verbose android debug
       working-directory: .
 
